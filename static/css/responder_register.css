@@ -1,0 +1,92 @@
+/* ===== Responder Registration Page ===== */
+
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f4f7fb;
+    margin: 0;
+    padding: 0;
+}
+
+.register-container {
+    max-width: 520px;
+    margin: 60px auto;
+    background: #ffffff;
+    padding: 32px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.register-container h2 {
+    margin-bottom: 8px;
+    color: #1f2937;
+}
+
+.register-container p.subtitle {
+    margin-bottom: 24px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Form */
+#responderRegisterForm {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#responderRegisterForm label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
+}
+
+#responderRegisterForm input[type="text"],
+#responderRegisterForm select,
+#responderRegisterForm input[type="file"] {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+#responderRegisterForm input:focus,
+#responderRegisterForm select:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.note {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f9fafb;
+    padding: 10px;
+    border-left: 4px solid #2563eb;
+    border-radius: 6px;
+}
+
+/* Button */
+#responderRegisterForm button {
+    margin-top: 10px;
+    padding: 12px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+#responderRegisterForm button:hover {
+    background: #1e40af;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+    .register-container {
+        margin: 30px 16px;
+        padding: 24px;
+    }
+}

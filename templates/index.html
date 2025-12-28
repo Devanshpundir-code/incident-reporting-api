@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+{% endblock %}
+
+{% block title %}Emergency Alert - Report Incident{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Emergency Alert Banner (Placeholder) -->
+    <div id="emergencyAlert" class="alert-banner" style="display: none;">
+        <div class="alert-content">
+            <span class="alert-icon">⚠️</span>
+            <div>
+                <h3>HIGH SEVERITY INCIDENT NEARBY</h3>
+                <p>Critical incident reported in your area. Exercise caution.</p>
+            </div>
+        </div>
+        <button class="alert-close" onclick="dismissAlert()">×</button>
+    </div>
+
+    <!-- Main Heading -->
+    <header class="main-header">
+        <h1><span class="emergency-icon">🚨</span> Emergency Alert</h1>
+        <p class="tagline">Report emergencies instantly. Help others stay safe.</p>
+    </header>
+
+    <!-- Incident Reporting Form -->
+    <main class="form-container">
+        <h2 class="form-title">Report Emergency</h2>
+        
+        <form id="incidentForm" class="emergency-form" enctype="multipart/form-data">
+            <!-- Incident Type -->
+            <div class="form-group">
+                <label for="incidentType" class="form-label">Incident Type *</label>
+                <select id="incidentType" name="type" required class="form-select">
+                    <option value="" disabled selected>Select incident type</option>
+                    <option value="accident">🚗 Accident</option>
+                    <option value="medical">🏥 Medical Emergency</option>
+                    <option value="fire">🔥 Fire</option>
+                    <option value="crime">👮 Crime</option>
+                    <option value="other">❓ Other</option>
+                </select>
+            </div>
+
+            <!-- Description -->
+            <div class="form-group">
+                <label for="description" class="form-label">Description *</label>
+                <textarea id="description" name="description" rows="3" 
+                          placeholder="Briefly describe what is happening..." 
+                          required class="form-textarea"></textarea>
+            </div>
+
+            
+                
+                
+                <!-- Location Capture -->
+<div class="form-group">
+    <div class="location-header">
+        <label class="form-label">Location *</label>
+        <button type="button" id="getLocationBtn" class="location-btn">
+            📍 Get My Location
+        </button>
+    </div>
+
+    <!-- Human-readable location -->
+    <input type="text"
+           id="locationText"
+           class="location-text-input"
+           placeholder="Enter your location (e.g., Selaqui, Dehradun near ABC)"
+           required>
+
+    <!-- Hidden fields for backend -->
+    <input type="hidden" id="latitude" name="latitude">
+    <input type="hidden" id="longitude" name="longitude">
+
+    <p class="location-note">
+        Location is automatically detected. You can edit the address if needed.
+    </p>
+</div>
+
+
+            <!-- File Upload -->
+            <div class="form-group">
+                <label for="media" class="form-label">Upload Photo/Video (Optional)</label>
+                <input type="file" id="media" name="media" 
+                       accept="image/*,video/*" class="file-input">
+                <p class="file-note">Max size: 10MB. Photos/videos help verification.</p>
+            </div>
+
+            <!-- Severity Legend -->
+            <div class="severity-legend">
+                <h3>Severity Level (AI-Suggested)</h3>
+                <div class="severity-items">
+                    <div class="severity-item">
+                        <span class="severity-dot critical"></span>
+                        <span>Critical (Red)</span>
+                    </div>
+                    <div class="severity-item">
+                        <span class="severity-dot serious"></span>
+                        <span>Serious (Orange)</span>
+                    </div>
+                    <div class="severity-item">
+                        <span class="severity-dot medium"></span>
+                        <span>Medium (Yellow)</span>
+                    </div>
+                    <div class="severity-item">
+                        <span class="severity-dot minor"></span>
+                        <span>Minor (Green)</span>
+                    </div>
+                </div>
+                <p class="legend-note">Severity is automatically estimated and may change.</p>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="submit-btn">
+                🚨 REPORT INCIDENT
+            </button>
+        </form>
+
+        <!-- Submission Message -->
+        <div id="submissionMessage" class="submission-message" style="display: none;">
+            <h3>✅ Incident Reported!</h3>
+            <p>Your report has been submitted. First responders have been alerted.</p>
+            <p><strong>Status:</strong> <span class="status-unverified">UNVERIFIED</span></p>
+            <p>Others nearby will help verify this incident.</p>
+        </div>
+        <!-- Live Guidance Section -->
+<div id="liveGuidance" class="live-guidance" style="display:none;">
+    <h3>🟢 Live Safety Guidance</h3>
+    <p class="guidance-note">
+        Follow instructions carefully until help arrives.
+    </p>
+    <div id="notesContainer"></div>
+    <button id="closeGuidanceBtn" class="close-guidance-btn">
+        ❌ Close Guidance
+    </button>
+</div>
+
+        <!-- My Report Status -->
+<div id="myReportStatus" class="my-report-status" style="display:none;">
+    <h3>📌 Your Report Status</h3>
+
+    <div class="status-item">
+        <strong>Status:</strong>
+        <span id="userReportStatus">UNVERIFIED</span>
+    </div>
+
+    <div class="status-item">
+        <strong>Responder:</strong>
+        <span id="claimedStatus">Not claimed yet</span>
+    </div>
+
+    <div class="status-item">
+        <strong>ETA:</strong>
+        <span id="etaStatus">Not available</span>
+    </div>
+
+    <div class="status-item">
+        <strong>Responder Note:</strong>
+        <p id="responderNote">No message yet</p>
+    </div>
+</div>
+
+    </main>
+
+    <!-- Nearby Incidents Section -->
+    <section class="incidents-section">
+        <div class="section-header">
+            <h2>
+                <span class="incident-icon">📍</span>
+                Nearby Incidents
+                <span id="incidentCount" class="count-badge">0</span>
+            </h2>
+            <button id="toggleIncidents" class="toggle-btn">−</button>
+        </div>
+
+        <div id="incidentsContainer" class="incidents-container">
+            <!-- Incidents will be loaded here -->
+            <div class="loading-incidents">Loading nearby incidents...</div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/index.js') }}" defer></script>
+{% endblock %}

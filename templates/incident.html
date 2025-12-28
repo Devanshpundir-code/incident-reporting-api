@@ -1,0 +1,225 @@
+<!-- templates/incident.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident #{{ incident.id }} - Emergency Response</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/incident.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header with back button -->
+        <header class="page-header">
+            <a href="/dashboard" class="back-button">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+            <h1>Emergency Incident Details</h1>
+            <div class="header-meta">
+                <span class="live-badge" id="liveBadge">
+                    <i class="fas fa-circle"></i> Live Updates
+                </span>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <p>Loading incident details...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="error-state" style="display: none;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Unable to Load Incident</h3>
+            <p id="errorMessage"></p>
+            <button onclick="location.reload()" class="btn-retry">
+                <i class="fas fa-redo"></i> Retry
+            </button>
+        </div>
+
+        <!-- Main Content (initially hidden) -->
+        <div id="mainContent" style="display: none;">
+
+            <!-- Incident Overview -->
+            <section class="card overview-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-info-circle"></i> Incident Overview</h2>
+                    <div class="incident-id">ID: <span id="incidentId">{{ incident.id if incident else '' }}</span></div>
+                </div>
+                
+                <div class="overview-grid">
+                    <div class="overview-item">
+                        <label>Incident Type</label>
+                        <h3 id="incidentType">—</h3>
+                    </div>
+                    <div class="overview-item">
+                        <label>Reported</label>
+                        <h3 id="timestamp">—</h3>
+                    </div>
+                    <div class="overview-item">
+                        <label>Location</label>
+                        <h3 id="location">—</h3>
+                    </div>
+                    <div class="overview-item status-item">
+                        <label>Current Status</label>
+                        <div class="status-container">
+                            <span class="status-badge" id="statusBadge">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="severity-row">
+                    <div class="severity-item">
+                        <label>Severity Level</label>
+                        <div class="severity-badge-container">
+                            <span class="severity-badge" id="severityBadge">—</span>
+                            <span class="severity-text" id="severityText"></span>
+                        </div>
+                    </div>
+                    <div class="severity-item">
+                        <label>AI Suggested Severity</label>
+                        <div class="ai-severity">
+                            <span class="ai-severity-badge" id="aiSeverityBadge">—</span>
+                            <small class="ai-note">Final decision by responder</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="description-container">
+                    <label>Description</label>
+                    <p id="description" class="description-text">—</p>
+                </div>
+            </section>
+
+            <!-- Verification Summary -->
+            <section class="card verification-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-check-circle"></i> Verification Summary</h2>
+                </div>
+                <div class="verification-grid">
+                    <div class="verification-item confirmed">
+                        <div class="verification-count" id="verifiedYes">0</div>
+                        <div class="verification-label">Confirmed</div>
+                    </div>
+                    <div class="verification-item denied">
+                        <div class="verification-count" id="verifiedNo">0</div>
+                        <div class="verification-label">Denied</div>
+                    </div>
+                    <div class="verification-item unsure">
+                        <div class="verification-count" id="verifiedUnsure">0</div>
+                        <div class="verification-label">Unsure</div>
+                    </div>
+                </div>
+                <div class="verification-bar">
+                    <div class="verified-bar" id="verifiedBar"></div>
+                </div>
+            </section>
+
+            <!-- Related Reports -->
+            <section class="card related-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-copy"></i> Related Reports</h2>
+                    <span class="count-badge" id="relatedCount">0</span>
+                </div>
+                <p class="section-subtitle">Duplicate or similar reports from other users</p>
+                
+                <div class="related-list" id="relatedList">
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-check"></i>
+                        <p>No related reports found</p>
+                    </div>
+                </div>
+                <button class="btn-expand" id="toggleRelated">
+                    <span>Show All Reports</span>
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </section>
+
+            <!-- AI-Guided First Response Instructions -->
+            <section class="card guidance-section" id="guidanceSection" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-life-ring"></i> First Response Guidance</h2>
+                    <span class="authority-badge">Authority-Approved</span>
+                </div>
+                <p class="section-subtitle">Basic safety instructions until help arrives</p>
+                
+                <div class="guidance-content" id="guidanceContent">
+                    <!-- Instructions will be populated by JS -->
+                </div>
+                <div class="disclaimer">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p><strong>Important:</strong> This is basic guidance only. Always follow instructions from emergency responders.</p>
+                </div>
+            </section>
+
+            <!-- Responder Action Panel (Visible only to responders) -->
+            <section class="card responder-section" id="responderSection" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-user-shield"></i> Responder Controls</h2>
+                </div>
+                
+                <form id="statusUpdateForm">
+                    <div class="form-group">
+                        <label for="statusSelect">Update Incident Status</label>
+                        <select id="statusSelect" class="form-control" required>
+                            <option value="">Select new status...</option>
+                            <option value="verified">✓ Verified</option>
+                            <option value="in_progress">🚨 In Progress</option>
+                            <option value="resolved">✅ Resolved</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="responderNotes">Add Notes (Optional)</label>
+                        <textarea id="responderNotes" class="form-control" 
+                                  placeholder="Add update notes for other responders..." 
+                                  rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-save">
+                            <i class="fas fa-save"></i> Update Status
+                        </button>
+                        <div class="form-feedback" id="formFeedback"></div>
+                    </div>
+                </form>
+                
+                <div class="resolution-info" id="resolutionInfo" style="display: none;">
+                    <div class="resolved-banner">
+                        <i class="fas fa-flag-checkered"></i>
+                        <div>
+                            <h4>Incident Resolved</h4>
+                            <p>Resolved on: <span id="resolvedTime">—</span></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer class="page-footer">
+                <p class="last-updated">
+                    Last updated: <span id="lastUpdated">—</span>
+                </p>
+                <div class="footer-actions">
+                    <button onclick="refreshData()" class="btn-refresh">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button onclick="window.print()" class="btn-print">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        // Pass data from backend to frontend
+        const incidentId = "{{ incident.id if incident else '' }}";
+        const userRole = "{{ user_role if user_role else 'user' }}";
+        const isResponder = userRole === 'responder' || userRole === 'admin';
+    </script>
+    <script src="{{ url_for('static', filename='js/incident.js') }}"></script>
+</body>
+</html>

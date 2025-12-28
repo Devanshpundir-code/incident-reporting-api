@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Emergency incident reporting platform">
+    
+    <title>{% block title %}Emergency Incident Platform{% endblock %}</title>
+    
+    <!-- Base Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    
+    <!-- Page-specific CSS -->
+    {% block styles %}{% endblock %}
+    
+    <!-- Favicon (placeholder) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
+    
+    <!-- Accessibility: Skip to main content link (hidden until focused) -->
+    <style>
+        .skip-to-content {
+            position: absolute;
+            left: -10000px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+        .skip-to-content:focus {
+            position: static;
+            width: auto;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Skip to main content for keyboard users -->
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
+    
+    <!-- Header -->
+    <header role="banner" aria-label="Main header">
+        <div class="header-container">
+            <div class="header-branding">
+                <h1 class="app-name">Emergency Incident Platform</h1>
+                <p class="tagline">Report fast. Respond faster.</p>
+            </div>
+            
+            <nav class="header-nav" aria-label="Primary navigation">
+                <a href="{{ url_for('responder') }}" class="nav-link responder-link">
+                    Responder View
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="main-content" role="main">
+        {% block content %}
+        <!-- Page-specific content will be inserted here -->
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer role="contentinfo" aria-label="Footer">
+        <div class="footer-container">
+            <p class="footer-text">
+                Emergency support platform 
+            </p>
+        </div>
+    </footer>
+
+    <!-- Base JavaScript (if any) 
+    <script src="{{ url_for('static', filename='js/base.js') }}" defer></script>
+-->
+    <!-- Page-specific JavaScript -->
+    {% block scripts %}{% endblock %}
+</body>
+</html>

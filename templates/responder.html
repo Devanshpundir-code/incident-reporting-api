@@ -1,0 +1,162 @@
+<!-- responder.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Response Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responder.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1><i class="fas fa-broadcast-tower"></i> Emergency Response Dashboard</h1>
+                <p class="subtitle">Real-time incident management system</p>
+            </div>
+            <div class="header-right">
+                <div class="status-indicator">
+                    <span class="pulse"></span>
+                    <span id="connection-status">Connected</span>
+                </div>
+                <button id="refresh-btn" class="btn-refresh">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <div class="user-info">
+                    <i class="fas fa-user-shield"></i>
+                    <span>Responder</span>
+                </div>
+
+                <div class="header-actions">
+                <a href="/" class="switch-btn">
+    🔄 User View
+</a>
+
+
+    <a href="/responder/logout" class="logout-btn">
+        🚪 Logout
+    </a>
+</div>
+
+            </div>
+        </header>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card critical">
+                <h3 id="critical-count">0</h3>
+                <p>Critical</p>
+            </div>
+            <div class="stat-card serious">
+                <h3 id="serious-count">0</h3>
+                <p>Serious</p>
+            </div>
+            <div class="stat-card medium">
+                <h3 id="medium-count">0</h3>
+                <p>Medium</p>
+            </div>
+            <div class="stat-card minor">
+                <h3 id="minor-count">0</h3>
+                <p>Minor</p>
+            </div>
+            <div class="stat-card total">
+                <h3 id="total-count">0</h3>
+                <p>Total Active</p>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Active Incidents</h2>
+                <div class="controls">
+                    <div class="filter-group">
+                        <label for="severity-filter">Filter by Severity:</label>
+                        <select id="severity-filter">
+                            <option value="all">All Severities</option>
+                            <option value="critical">Critical</option>
+                            <option value="serious">Serious</option>
+                            <option value="medium">Medium</option>
+                            <option value="minor">Minor</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="status-filter">Filter by Status:</label>
+                        <select id="status-filter">
+                            <option value="all">All Statuses</option>
+                            <option value="unverified">Unverified</option>
+                            <option value="verified">Verified</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading" class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading incidents...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="error-state hidden">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Failed to load incidents</h3>
+                <p id="error-message">Error details here</p>
+                <button id="retry-btn" class="btn-primary">Retry</button>
+            </div>
+
+            <!-- Incidents Container -->
+            <div id="incidents-container" class="incidents-container">
+                <!-- Incident cards will be inserted here by JavaScript -->
+            </div>
+
+            <!-- No Incidents State -->
+            <div id="no-incidents" class="no-incidents hidden">
+                <i class="fas fa-check-circle"></i>
+                <h3>No Active Incidents</h3>
+                <p>All incidents are currently resolved.</p>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Emergency Response System v1.0 • Last updated: <span id="last-updated">Never</span></p>
+            <p class="disclaimer">Responders have final authority over all incident classifications.</p>
+        </footer>
+    </div>
+
+    <!-- Incident Details Modal -->
+    <div id="incident-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Incident Details</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Reports Modal -->
+    <div id="reports-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Related Reports</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="related-reports-list">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/responder.js') }}"></script>
+</body>
+</html>

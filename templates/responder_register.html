@@ -1,0 +1,36 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/responder_register.css') }}">
+
+<div class="register-container">
+    <h2>Responder Registration</h2>
+    <p class="subtitle">
+        Register to receive incidents related to your expertise.
+    </p>
+
+    <form id="responderRegisterForm" enctype="multipart/form-data">
+
+        <label>Name *</label>
+        <input type="text" name="name" required>
+
+        <label>Field of Expertise *</label>
+        <select name="role" required>
+            <option value="">Select</option>
+            <option value="medical">Medical</option>
+            <option value="police">Police</option>
+            <option value="fire">Fire</option>
+            <option value="traffic">Traffic / Accident</option>
+            <option value="disaster">Disaster Response</option>
+        </select>
+
+        <label>Upload Proof *</label>
+        <input type="file" name="proof" required>
+
+        <p class="note">
+            Upload ID card / hospital letter / department proof.
+        </p>
+
+        <button type="submit">Register as Responder</button>
+
+    </form>
+</div>
+
+<script src="{{ url_for('static', filename='js/responder_register.js') }}"></script>
