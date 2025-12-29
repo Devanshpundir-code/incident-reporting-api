@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, session
 from flask_cors import CORS
-import sqlite3
+import mysql.connector
+from mysql.connector import Error
 import os
 from datetime import datetime
 import uuid
@@ -15,210 +16,218 @@ CORS(app)
 
 app.config['SECRET_KEY'] = 'emergency-app-secret-key-change-in-production'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'}
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ========================
-# DATABASE INITIALIZATION
-# ========================
-def init_db():
-    """Builds the entire MySQL schema inside SQLite for Render compatibility"""
-    try:
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        
-        # All your tables from the SQL you provided
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(100), phone VARCHAR(15), 
-            email VARCHAR(100), role TEXT DEFAULT 'user', latitude DECIMAL(9,6), 
-            longitude DECIMAL(9,6), siren_opt_in BOOLEAN DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-        cursor.execute('''CREATE TABLE IF NOT EXISTS incidents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, type VARCHAR(50), description TEXT, 
-            latitude DECIMAL(9,6), longitude DECIMAL(9,6), severity_color TEXT DEFAULT 'green', 
-            ai_suggested_severity TEXT, status TEXT DEFAULT 'unverified', created_by INTEGER, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, resolved_at TIMESTAMP NULL,
-            responder_priority TEXT DEFAULT NULL, claimed_by INTEGER DEFAULT NULL, 
-            claimed_at DATETIME DEFAULT NULL, responder_note TEXT NULL, responder_eta VARCHAR(50),
-            FOREIGN KEY (created_by) REFERENCES users(id))''')
-
-        cursor.execute('''CREATE TABLE IF NOT EXISTS incident_reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, reporter_id INTEGER, 
-            description TEXT, media_path VARCHAR(255), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (incident_id) REFERENCES incidents(id), FOREIGN KEY (reporter_id) REFERENCES users(id))''')
-
-        cursor.execute('''CREATE TABLE IF NOT EXISTS verifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER, user_id INTEGER, 
-            response TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (incident_id) REFERENCES incidents(id), FOREIGN KEY (user_id) REFERENCES users(id))''')
-
-        cursor.execute('''CREATE TABLE IF NOT EXISTS responders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(100), 
-            role TEXT, proof_path VARCHAR(255), status TEXT DEFAULT 'pending', 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-        cursor.execute('''CREATE TABLE IF NOT EXISTS incident_notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, incident_id INTEGER NOT NULL, 
-            sender_type TEXT NOT NULL, sender_id INTEGER NULL, message TEXT NOT NULL, 
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-
-        # Insert Demo User
-        cursor.execute("SELECT id FROM users WHERE id = 1")
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO users (id, name) VALUES (1, 'Demo User')")
-
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"DB Error: {e}")
+DB_CONFIG = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'Pokemon29@', # Ensure this matches your local password
+    'database': 'incidence',
+    'port': 3306
+}
 
 # ========================
-# REPLACED CONNECTION HELPER
+# HELPER FUNCTIONS
 # ========================
 def get_db_connection():
-    """This replaces your MySQL connection logic entirely"""
     try:
-        conn = sqlite3.connect('database.db', timeout=10)
-        conn.row_factory = sqlite3.Row
-        return conn
-    except Exception as e:
-        print(f"SQLite Connection Error: {e}")
+        connection = mysql.connector.connect(**DB_CONFIG)
+        return connection
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
         return None
 
-# ========================
-# RESTORED HELPER LOGIC
-# ========================
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def save_uploaded_file(file):
     if file and allowed_file(file.filename):
-        filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
         return filename
     return None
 
 def calculate_distance(lat1, lon1, lat2, lon2):
-    R = 6371000 
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi, dlambda = math.radians(lat2-lat1), math.radians(lon2-lon1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1-a)))
+    R = 6371000  # Earth radius in meters
+    lat1_rad, lat2_rad = math.radians(lat1), math.radians(lat2)
+    delta_lat, delta_lon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = math.sin(delta_lat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
 
 def ai_suggest_severity(description, incident_type):
-    d = description.lower()
-    if any(k in d for k in ['fire', 'gun', 'explosion', 'bleeding']): return 'critical'
-    if any(k in d for k in ['accident', 'crash', 'robbery']): return 'serious'
-    return {'medical': 'serious', 'fire': 'critical'}.get(incident_type, 'minor')
+    desc = description.lower()
+    critical = ['fire', 'explosion', 'gun', 'shot', 'stab', 'unconscious', 'breathing', 'heart attack']
+    serious = ['accident', 'crash', 'hit', 'broken', 'pain', 'bleeding', 'fall', 'assault', 'robbery']
+    
+    for kw in critical:
+        if kw in desc: return 'critical'
+    for kw in serious:
+        if kw in desc: return 'serious'
+    
+    type_map = {'medical': 'serious', 'fire': 'critical', 'crime': 'serious', 'accident': 'medium'}
+    return type_map.get(incident_type, 'minor')
 
 def get_severity_color(severity):
-    return {'critical': 'red', 'serious': 'orange', 'medium': 'yellow', 'minor': 'green'}.get(severity, 'yellow')
+    return {'critical': 'red', 'serious': 'orange', 'medium': 'yellow', 'minor': 'green'}.get(severity, 'green')
 
 def get_time_ago(ts):
     if not ts: return "Just now"
-    if isinstance(ts, str): 
-        try: ts = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
-        except: return "Just now"
     diff = datetime.now() - ts
     if diff.days > 0: return f"{diff.days}d ago"
     if diff.seconds > 3600: return f"{diff.seconds // 3600}h ago"
-    return f"{diff.seconds // 60}m ago"
+    if diff.seconds > 60: return f"{diff.seconds // 60}m ago"
+    return "Just now"
 
 # ========================
-# ALL YOUR ORIGINAL ROUTES
+# ROUTES
 # ========================
 
 @app.route("/")
-def index(): return render_template("index.html")
-
-@app.route('/responder')
-def responder():
-    if not session.get('responder_id'): return redirect('/responder/register')
-    return render_template('responder.html')
+def index():
+    return render_template("index.html")
 
 @app.route('/report', methods=['POST'])
 def report_incident():
     try:
-        i_type, desc = request.form.get('type'), request.form.get('description')
-        lat, lon = float(request.form.get('latitude')), float(request.form.get('longitude'))
-        media = save_uploaded_file(request.files.get('media'))
+        incident_type = request.form.get('type')
+        description = request.form.get('description')
+        latitude = float(request.form.get('latitude'))
+        longitude = float(request.form.get('longitude'))
+        user_id = request.form.get('user_id', 1) 
+        
+        media_path = save_uploaded_file(request.files.get('media'))
+        ai_severity = ai_suggest_severity(description, incident_type)
+        severity_color = get_severity_color(ai_severity)
         
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
+
+        # Duplicate check (200m)
+        cursor.execute("SELECT id, latitude, longitude FROM incidents WHERE type = %s AND status NOT IN ('resolved', 'false') AND created_at >= NOW() - INTERVAL 15 MINUTE", (incident_type,))
+        incidents = cursor.fetchall()
         
-        # Duplicate check (15 min window)
-        cursor.execute("SELECT id, latitude, longitude FROM incidents WHERE type = ? AND status NOT IN ('resolved', 'false') AND created_at >= datetime('now', '-15 minutes')", (i_type,))
-        dupes = cursor.fetchall()
-        dup_id = next((d['id'] for d in dupes if calculate_distance(lat, lon, d['latitude'], d['longitude']) <= 200), None)
-        
-        if dup_id:
-            cursor.execute("INSERT INTO incident_reports (incident_id, reporter_id, description, media_path) VALUES (?, 1, ?, ?)", (dup_id, desc, media))
-            res_id = dup_id
+        duplicate_id = next((i['id'] for i in incidents if calculate_distance(latitude, longitude, i['latitude'], i['longitude']) <= 200), None)
+
+        if duplicate_id:
+            cursor.execute("INSERT INTO incident_reports (incident_id, reporter_id, description, media_path) VALUES (%s, %s, %s, %s)", (duplicate_id, user_id, description, media_path))
+            incident_id = duplicate_id
         else:
-            ai_sev = ai_suggest_severity(desc, i_type)
-            cursor.execute("INSERT INTO incidents (type, description, latitude, longitude, severity_color, ai_suggested_severity, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'unverified', 1)", (i_type, desc, lat, lon, get_severity_color(ai_sev), ai_sev))
-            res_id = cursor.lastrowid
-            cursor.execute("INSERT INTO incident_reports (incident_id, reporter_id, description, media_path) VALUES (?, 1, ?, ?)", (res_id, desc, media))
-        
+            cursor.execute("INSERT INTO incidents (type, description, latitude, longitude, severity_color, ai_suggested_severity, status, created_by) VALUES (%s, %s, %s, %s, %s, %s, 'unverified', %s)",
+                           (incident_type, description, latitude, longitude, severity_color, ai_severity, user_id))
+            incident_id = cursor.lastrowid
+            cursor.execute("INSERT INTO incident_reports (incident_id, reporter_id, description, media_path) VALUES (%s, %s, %s, %s)", (incident_id, user_id, description, media_path))
+
         conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'incident_id': res_id}), 201
-    except Exception as e: return jsonify({'error': str(e)}), 500
+        return jsonify({'success': True, 'incident_id': incident_id, 'ai_severity': ai_severity}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'conn' in locals(): conn.close()
 
-@app.route('/incidents/nearby')
-def nearby():
-    lat, lng = float(request.args.get('lat', 0)), float(request.args.get('lng', 0))
-    conn = get_db_connection()
-    rows = conn.execute("SELECT * FROM incidents WHERE status != 'resolved'").fetchall()
-    return jsonify({'incidents': [dict(r) for r in rows if calculate_distance(lat, lng, r['latitude'], r['longitude']) <= 500]})
+@app.route('/incidents/nearby', methods=['GET'])
+def get_nearby_incidents():
+    try:
+        lat, lng = float(request.args.get('lat', 0)), float(request.args.get('lng', 0))
+        radius = float(request.args.get('radius', 500))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM incidents WHERE status NOT IN ('resolved', 'false')")
+        
+        nearby = []
+        for inc in cursor.fetchall():
+            dist = calculate_distance(lat, lng, inc['latitude'], inc['longitude'])
+            if dist <= radius:
+                inc['distance'] = f"{round(dist)}m"
+                inc['time_ago'] = get_time_ago(inc['created_at'])
+                nearby.append(inc)
+        
+        return jsonify({'success': True, 'incidents': nearby})
+    finally:
+        if 'conn' in locals(): conn.close()
 
-@app.route('/verify', methods=['POST'])
-def verify():
-    data = request.json
+@app.route('/responder/incidents', methods=['GET'])
+def get_responder_incidents():
+    try:
+        role = session.get('responder_role')
+        if not role: return jsonify({'error': 'Unauthorized'}), 401
+
+        role_map = {'medical': ['medical'], 'police': ['crime'], 'fire': ['fire'], 'traffic': ['accident'], 'disaster': ['medical', 'crime', 'fire', 'accident', 'other']}
+        allowed = role_map.get(role, [])
+        placeholders = ','.join(['%s'] * len(allowed))
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Optimized query with GROUP_CONCAT for verifications
+        query = f"""
+            SELECT i.*, GROUP_CONCAT(v.response) as verification_responses, COUNT(DISTINCT ir.id) as report_count
+            FROM incidents i
+            LEFT JOIN incident_reports ir ON i.id = ir.incident_id
+            LEFT JOIN verifications v ON i.id = v.incident_id
+            WHERE i.status NOT IN ('resolved', 'false') AND i.type IN ({placeholders})
+            GROUP BY i.id ORDER BY i.created_at DESC
+        """
+        cursor.execute(query, tuple(allowed))
+        incidents = cursor.fetchall()
+
+        for inc in incidents:
+            resps = (inc['verification_responses'] or "").split(',')
+            inc['verification_summary'] = {'yes': resps.count('yes'), 'no': resps.count('no'), 'not_sure': resps.count('not_sure')}
+
+        return jsonify({'success': True, 'incidents': incidents})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if 'conn' in locals(): conn.close()
+
+@app.route('/incident/<int:incident_id>/claim', methods=['POST'])
+def claim_incident(incident_id):
+    responder_id = session.get('responder_id')
+    if not responder_id: return jsonify({'error': 'Unauthorized'}), 401
+
     conn = get_db_connection()
-    conn.execute("INSERT INTO verifications (incident_id, user_id, response) VALUES (?, 1, ?)", (data['incident_id'], data['response']))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("UPDATE incidents SET claimed_by = %s, claimed_at = NOW(), status = 'in_progress' WHERE id = %s AND claimed_by IS NULL", (responder_id, incident_id))
     conn.commit()
-    conn.close()
-    return jsonify({'success': True})
+    return jsonify({'success': cursor.rowcount > 0})
 
 @app.route('/responder/register', methods=['GET', 'POST'])
-def register():
+def responder_register():
     if request.method == 'GET': return render_template('responder_register.html')
+    
+    name, role = request.form.get('name'), request.form.get('role')
+    proof = request.files.get('proof')
+    filename = secure_filename(proof.filename) if proof else None
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO responders (name, role, status) VALUES (?, ?, 'approved')", (request.form['name'], request.form['role']))
+    cursor.execute("INSERT INTO responders (name, role, proof_path, status) VALUES (%s, %s, %s, 'approved')", (name, role, filename))
     conn.commit()
-    session['responder_id'] = cursor.lastrowid
-    session['responder_role'] = request.form['role']
-    conn.close()
+    
+    session['responder_id'], session['responder_role'] = cursor.lastrowid, role
     return jsonify({'success': True})
 
-@app.route('/incident/<int:id>/claim', methods=['POST'])
-def claim(id):
+@app.route('/incident/<int:incident_id>/status', methods=['POST'])
+def update_status(incident_id):
+    status = request.get_json().get('status')
     conn = get_db_connection()
-    conn.execute("UPDATE incidents SET claimed_by = ?, claimed_at = datetime('now') WHERE id = ?", (session.get('responder_id'), id))
+    cursor = conn.cursor()
+    cursor.execute("UPDATE incidents SET status = %s, resolved_at = %s WHERE id = %s", 
+                   (status, datetime.now() if status == 'resolved' else None, incident_id))
     conn.commit()
-    conn.close()
     return jsonify({'success': True})
 
-@app.route('/incident/<int:id>/status', methods=['POST'])
-def update_status(id):
-    conn = get_db_connection()
-    conn.execute("UPDATE incidents SET status = ? WHERE id = ?", (request.json['status'], id))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
-
-@app.route('/uploads/<filename>')
-def uploads(filename): return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-# ========================
-# CRITICAL RENDER TRIGGER
-# ========================
-with app.app_context():
-    init_db()
+@app.route('/responder/logout')
+def logout():
+    session.clear()
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
