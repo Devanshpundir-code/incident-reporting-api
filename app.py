@@ -198,21 +198,59 @@ def claim_incident(incident_id):
     conn.commit()
     return jsonify({'success': cursor.rowcount > 0})
 
-@app.route('/responder/register', methods=['GET', 'POST'])
-def responder_register():
-    if request.method == 'GET': return render_template('responder_register.html')
-    
-    name, role = request.form.get('name'), request.form.get('role')
-    proof = request.files.get('proof')
-    filename = secure_filename(proof.filename) if proof else None
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO responders (name, role, proof_path, status) VALUES (%s, %s, %s, 'approved')", (name, role, filename))
-    conn.commit()
-    
-    session['responder_id'], session['responder_role'] = cursor.lastrowid, role
-    return jsonify({'success': True})
+@app.route('/responder/register', methods=['POST'])
+def submit_responder_registration():
+    try:
+        name = request.form.get('name')
+        role = request.form.get('role') # Ensure this is lowercase: 'medical', 'police', etc.
+
+        if not name or not role:
+            return jsonify({'error': 'Name and Role are required'}), 400
+
+        proof_file = request.files.get('proof')
+        proof_path = None
+
+        if proof_file and proof_file.filename != '':
+            # 1. FIX: Ensure the folder exists before saving
+            upload_dir = os.path.join('static', 'responder_proofs')
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            filename = secure_filename(proof_file.filename)
+            unique_name = f"{uuid.uuid4().hex}_{filename}"
+            proof_path = f"responder_proofs/{unique_name}"
+            
+            # Save the file
+            proof_file.save(os.path.join('static', proof_path))
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
+        cursor = conn.cursor()
+
+        # 2. FIX: Check if your SQL 'role' matches exactly what comes from HTML
+        # The DB expects: 'medical','police','fire','traffic','disaster'
+        cursor.execute("""
+            INSERT INTO responders (name, role, proof_path, status)
+            VALUES (%s, %s, %s, 'approved')
+        """, (name, role.lower(), proof_path))
+
+        conn.commit()
+
+        responder_id = cursor.lastrowid
+        session['responder_id'] = responder_id
+        session['responder_role'] = role.lower()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        # This will print the EXACT error in your terminal/cmd
+        print("!!! REGISTRATION ERROR:", str(e))
+        return jsonify({'error': f"Server Error: {str(e)}"}), 500
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 @app.route('/incident/<int:incident_id>/status', methods=['POST'])
 def update_status(incident_id):
